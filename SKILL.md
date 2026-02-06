@@ -17,6 +17,12 @@ keywords:
 
 Access **Reddit's complete data archive** through reddapi.dev's powerful API. This skill provides semantic search, subreddit discovery, and trend analysis capabilities.
 
+**Key Advantage:** This is a **third-party service** (not Reddit official), meaning:
+- ✅ **No rate limits** - Unlimited QPS and request volume
+- ✅ **No time restrictions** - 24/7 availability
+- ✅ **No daily/monthly quotas** - Use as much as you need
+- ✅ **Full Reddit archive** - Access historical and real-time discussions
+
 ## Key Features
 
 ### 🔍 Semantic Search
