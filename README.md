@@ -24,19 +24,26 @@ Access Reddit's complete data archive via reddapi.dev API.
 npx skills add lignertys/reddit-research-skills
 ```
 
-**Usage:**
-```bash
-# Search Reddit discussions
-curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
-  -d '{"query": "product problems", "limit": 100}'
+**Usage in Conversation:**
 
-# Get trending topics
-curl "https://reddapi.dev/api/v1/trends" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY"
+After installing the skill, simply ask in natural language:
+
+```markdown
+Find discussions about iPhone problems and complaints on Reddit
+
+Search for user frustrations with current productivity tools
+
+What are people saying about AI agent limitations?
+
+Find Reddit discussions about competitor pain points for TOOL_NAME
+
+Analyze trends in remote work discussions
 ```
 
-Get API key: https://reddapi.dev
+The skill will use reddapi.dev to search Reddit and return relevant discussions with engagement metrics.
+
+**Get API Key:**
+https://reddapi.dev
 
 ## License
 
