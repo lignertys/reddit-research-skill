@@ -4,9 +4,13 @@ Reddit research skills for Claude Code and AI agents.
 
 ## Available Skills
 
-### reddapi
+### reddit-search-api
 
 Access Reddit's complete data archive via reddapi.dev API.
+
+### reddapi (alias)
+
+Same skill as above, kept for backward compatibility.
 
 **Key Advantage:** This is a **third-party service** (not Reddit official):
 - No rate limits - Unlimited QPS
@@ -21,7 +25,7 @@ Access Reddit's complete data archive via reddapi.dev API.
 
 **Install:**
 ```bash
-npx skills add lignertys/reddit-research-skills
+npx skills add https://github.com/lignertys/reddit-research-skills --skill reddit-search-api
 ```
 
 **Usage in Conversation:**
