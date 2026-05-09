@@ -273,12 +273,6 @@ Each lead result includes:
 - `target_product` — What they're using/complaining about
 - `pain_point` / `opportunity` — Messaging hooks
 
-## Related Skills
-
-- **reddit-insights** — General semantic search across Reddit (broader research, sentiment analysis)
-- **backlink-opportunity-discovery** — Find SEO backlink opportunities
-- **saas-opportunity-hunter** — Systematic SaaS/API opportunity discovery
-
 ## Error Handling
 
 All endpoints return consistent error responses:
