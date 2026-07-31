@@ -4,28 +4,47 @@ Reddit research skills for Claude Code and AI agents.
 
 ## Available Skills
 
-### reddit-search-api
+### reddit-research (canonical)
 
-Access Reddit's complete data archive via reddapi.dev API.
+Market research, user research, and product validation on Reddit via
+reddapi.dev - semantic search across 50K+ subreddits, 20M+ posts, and 40M+
+comments, trends over a date range, and subreddit discovery, plus query
+playbooks for competitor research, niche validation, and trend tracking.
 
-### reddapi (alias)
+### reddapi (legacy name)
 
-Same skill as above, kept for backward compatibility.
+The original skill name for the same engine as `reddit-research`, kept live
+for existing installs. Fully functional standalone; new installs should
+prefer `reddit-research` for the expanded playbooks.
 
-**Key Advantage:** This is a **third-party service** (not Reddit official):
-- No rate limits - Unlimited QPS
-- No time restrictions - 24/7 availability
-- No daily/monthly quotas - Use as much as you need
-- Full Reddit archive - Historical + real-time discussions
+### reddit-search-api (reference)
+
+Pure API reference for the same engine - endpoints, parameters, response
+schemas, error codes, no research-workflow framing. For developers who just
+want the API docs.
+
+### reddit-leads
+
+B2B lead discovery - finds Reddit posts with buying intent, scores them 0-100, and
+classifies by lead type (pain_point, solution_request, complaint, feature_request,
+comparison). Requires a paid reddapi.dev plan.
+
+**Key facts:** This is a **third-party service** (not Reddit official) - no Reddit
+OAuth or app registration needed. It is **not** unlimited: access is gated by
+plan-based rate limits (see `skills/reddit-leads/SKILL.md` for the plan/quota table);
+an invalid or exhausted key returns HTTP 429.
 
 **Features:**
-- Semantic Search: Natural language search across millions of Reddit posts
-- Trends API: Discover trending topics with engagement metrics
-- Subreddit Discovery: List and explore subreddits
+- Vector Search: embedding similarity with `similarity_score` and optional date
+  filtering; returns fewer results than the requested `limit` (rolling post window)
+- Semantic Search: natural-language search that fills the requested `limit`, similar
+  speed to vector search, optional AI summary
+- Trends API: topic momentum over a required date range
+- Subreddit Discovery: list and look up subreddits
 
 **Install:**
 ```bash
-npx skills add https://github.com/lignertys/reddit-research-skills --skill reddit-search-api
+npx skills add https://github.com/lignertys/reddit-research-skills --skill reddit-research
 ```
 
 **Usage in Conversation:**
