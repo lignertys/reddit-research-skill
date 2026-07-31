@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "reddit-research",
+  "version": "1.0.0",
+  "description": "Reddit market research and B2B lead discovery via reddapi.dev - semantic search across 50K+ subreddits, 20M+ posts, and 40M+ comments, plus AI lead scoring, with no Reddit OAuth setup.",
+  "author": {
+    "name": "lignertys",
+    "url": "https://github.com/lignertys"
+  },
+  "homepage": "https://github.com/lignertys/reddit-research-skill",
+  "repository": "https://github.com/lignertys/reddit-research-skill",
+  "license": "MIT",
+  "keywords": [
+    "reddit",
+    "market-research",
+    "user-research",
+    "product-validation",
+    "niche-discovery",
+    "subreddit-discovery",
+    "trend-analysis",
+    "lead-generation"
+  ],
+  "skills": "./skills/"
+}
