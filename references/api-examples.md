@@ -92,19 +92,24 @@ curl "https://reddapi.dev/api/subreddits/programming" \
 
 Query: "people frustrated with project management tools".
 
-| Request | Returned | Wall time |
-|---|---|---|
-| `vector limit=5` | 4 | 6.3s (cold connection) |
-| `vector limit=30` | 17 | 2.4s |
-| `vector limit=100` | 52 | 1.3s |
-| `vector limit=250` | 52 (clamped to 100) | 1.8s |
-| `semantic limit=100` | 100 | 3.4s |
+| Request | Returned | Created range | Server time |
+|---|---|---|---|
+| `vector limit=30` | 30 | 2026-01-02 .. 2026-07-30 | 3.2s (cold connection) |
+| `vector limit=100` | 100 | 2026-01-01 .. 2026-07-30 | 0.8s |
+| `vector limit=20`, window `2026-01-01..2026-03-31` | 20, none outside the window | 2026-01-02 .. 2026-03-01 | 0.6s |
+| `semantic limit=100` | 100 | - | 2.3s |
+| MCP `reddit_vector_search limit=100` | 100 | 2026-01-01 .. 2026-07-30 | 2.2s wall |
 
-Cold-cache run with a never-before-seen query: `vector limit=100` → 40 results in
-2.6s, `semantic limit=100` → 100 results in 2.9s. So the vector shortfall is not a
-cache artifact: the endpoint rehydrates hits from a rolling post table covering
-2026-06-19 onward and drops older archive hits. `sentiment` on semantic results was
-an empty string in every case.
+No malformed rows, no duplicate ids, no empty `content` in any of the above.
+
+`upvotes`/`comments` come from the vector index metadata (recorded at index time),
+not a live read. Cross-checked against the live post table for the same 100 ids: 52
+were still in that table, of which 50 matched exactly and 2 differed only in comment
+count; no case where the API reported 0 upvotes while the table had more. The other
+48 were archive rows the live table no longer holds - which is exactly why earlier
+measurements of this endpoint topped out near 52.
+
+`sentiment` on semantic results was an empty string in every case.
 
 ## Common errors (all captured live)
 

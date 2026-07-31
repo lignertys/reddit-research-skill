@@ -58,11 +58,10 @@ summarize, and quote:
 
 ## Endpoints
 
-### Vector search - marginally faster, supports date filtering
+### Vector search - default choice
 
-Embedding-similarity search, ~2.6s. Choose it when you need `similarity_score` or a
-date range; choose semantic search when you need the full number of results (see the
-`limit` caveat below).
+Embedding-similarity search over the full archive. Fastest of the two modes, fills
+the `limit` you ask for, and the only one that accepts a date range.
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/vector" \
@@ -72,31 +71,29 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
        "start_date": "2026-01-01", "end_date": "2026-07-30"}'
 ```
 
-`start_date`/`end_date` are optional (format `YYYY-MM-DD`).
+`start_date`/`end_date` are optional (format `YYYY-MM-DD`) and are really applied:
+a 2026-01-01..2026-03-31 window returned 20 of 20 rows inside the range, none outside.
 
-`limit`: default 30, **max 100** (values above 100 are clamped, not rejected).
+`limit`: default 30, **max 100** (values above 100 are clamped, not rejected), and
+the response contains that many. Measured live 2026-07-31: `limit: 30` → 30 and
+`limit: 100` → 100 results spanning 2026-01-01 to 2026-07-30, 835ms server time.
+`total` is the count returned, not the size of the match set.
 
-**This endpoint under-delivers on `limit`.** It matches against the full archive but
-then rehydrates each hit from a rolling post table that only covers the last ~6
-weeks, silently dropping anything older. Measured live 2026-07-31: `limit: 5` → 4
-results, `limit: 30` → 17, `limit: 100` → 40-52, `limit: 250` → same as 100. `total`
-is the count actually returned, not the size of the match set. Ask for more than you
-need, or use semantic search when you need a full N results.
+`upvotes`/`comments` are the counts recorded when the post was indexed rather than a
+live read. Measured: of 52 rows still present in the live post table, 50 matched
+exactly and 2 differed only in comment count, so treat them as fresh but not real-time.
 
-### Semantic search - returns the full count, same speed
+### Semantic search - LLM-assisted alternative
 
-Natural-language search. `limit` default 20, max 100, and unlike vector search it
-**does** return the number you asked for (measured: `limit: 100` → 100 results).
-
-Speed is now comparable to vector search, not the ~15s that older docs claimed:
-cold-cache measurement 2026-07-31 was 2.9s (`limit: 100`) against vector's 2.6s.
-Results are cached ~12h per query, so a repeat of the same query returns faster.
+Natural-language search, also fills the requested `limit` (default 20, max 100;
+measured 100 → 100). Speed is comparable to vector search, not the ~15s older docs
+claimed: cold-cache 2.9s against vector's 2.6s, with ~12h result caching per query.
+Adds LLM keyword extraction and the optional AI summary below; accepts no date filter.
 
 `sentiment` is present as a field but **currently comes back empty on every result**
 (the classification step is disabled server-side), so do not build on it or promise
-it to the user. Real differences from vector search: semantic returns `relevance`
-instead of `similarity_score`, fills the requested `limit`, and accepts no date
-filter.
+it to the user. It also returns `relevance` where vector search returns
+`similarity_score`.
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
@@ -106,9 +103,9 @@ curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
 ```
 
 Optional `"include_summary": true` adds an LLM-written overview of the results as
-`data.ai_summary`. It is **off by default** and adds a slow LLM call on top of the
-already-slow semantic path, so only ask for it when you actually need the prose.
-The field is omitted entirely when disabled.
+`data.ai_summary`. It is **off by default** and adds a slow LLM call to the request,
+so only ask for it when you actually need the prose. The field is omitted entirely
+when disabled.
 
 ### Trends - POST only, pass an explicit date range
 
@@ -161,13 +158,12 @@ List responses: `data.subreddits[]` plus `total`, `page`, `limit`, `total_pages`
 
 ## Use Cases
 
-Breadth-first use cases below use semantic search, because it actually returns the
-requested count. Switch to `/search/vector` when you need a date range or
-`similarity_score`.
+The use cases below use vector search (full archive, exact counts, date filtering).
+Switch to `/search/semantic` when you want the LLM extras such as `include_summary`.
 
 ### Market research - competitor discussions
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
   -H "Authorization: Bearer $REDDAPI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "COMPETITOR problems complaints", "limit": 100}'
@@ -175,7 +171,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
 
 ### Niche discovery - underserved user needs
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
   -H "Authorization: Bearer $REDDAPI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "I wish there was an app that", "limit": 100}'

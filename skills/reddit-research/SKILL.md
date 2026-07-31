@@ -40,22 +40,26 @@ for Reddit's own API where official data provenance matters.
 
 This matters more than it looks - the two modes are not interchangeable:
 
-- **Vector search** is quick (~2.6s) but reads from a rolling table that only
-  covers roughly the last 6 weeks, and it **silently under-delivers on
-  `limit`**: measured 2026-07-31, `limit: 5` returned 4, `limit: 30` returned
-  17, `limit: 100` returned 40-52, and `limit: 250` returned the same as 100.
-  `total` in the response is the count actually returned, not the size of the
-  match set. Fine for a quick recent-window check; do not rely on it for a
-  complete count.
-- **Semantic search** covers the full archive and **reliably fills the
-  requested `limit`** (measured: `limit: 100` returned 100). Speed is now
-  comparable to vector - cold-cache 2.9s vs vector's 2.6s (measured
-  2026-07-31), with ~12h result caching per query - despite older docs
-  describing it as slow. It does not accept a date filter.
-- **Default to semantic search when completeness matters**, which is most
-  research work. Use vector search only when you specifically want a fast
-  look bounded to the recent window, or need the `start_date`/`end_date`
-  filter it supports.
+- **Vector search** searches the full archive, **fills the requested `limit`**,
+  and is the faster of the two. Re-measured 2026-07-31 after a server-side fix:
+  `limit: 30` → 30 results and `limit: 100` → 100 results, spanning
+  2026-01-01 to 2026-07-30, in 835ms of server time. It also takes
+  `start_date`/`end_date`, and the filter really applies (a 2026-01-01..03-31
+  window returned 20/20 rows, none outside the range). `total` is the count
+  actually returned, not the size of the match set.
+- **Semantic search** also fills the requested `limit` (100 → 100) at
+  comparable speed (cold-cache 2.9s), adds LLM keyword extraction and an
+  optional AI summary, and caches per query for ~12h. It accepts **no** date
+  filter.
+- **Default to vector search**: full archive, exact counts, faster, and the
+  only mode with date filtering. Reach for semantic search when you want the
+  LLM-side extras (`include_summary`, keyword expansion) rather than raw
+  nearest-neighbour hits.
+
+Historical note for anyone comparing older notes: before the 2026-07-31 fix,
+vector search rehydrated every hit from a ~6-week rolling table and dropped the
+rest, so `limit: 100` came back as ~50 and archive hits were unreachable. That
+is fixed; results now come straight from the vector index metadata.
 
 Semantic search's `sentiment` field is present in the schema but **currently
 comes back empty on every result** (the classification step is disabled
@@ -105,9 +109,9 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
        "start_date": "2026-01-01", "end_date": "2026-07-30"}'
 ```
 
-`start_date`/`end_date` optional (`YYYY-MM-DD`). `limit` default 30, max 100
-(higher values clamped, not rejected) - but see the under-delivery caveat
-above before trusting the count.
+`start_date`/`end_date` optional (`YYYY-MM-DD`) and genuinely applied. `limit`
+default 30, max 100 (higher values clamped, not rejected) and the response
+contains that many results.
 
 ### Semantic search
 
@@ -171,7 +175,7 @@ responses use `data.subreddits[]` plus `total`, `page`, `limit`,
 
 ### Market research - what people say about a competitor
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
   -H "Authorization: Bearer $REDDAPI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "COMPETITOR problems complaints", "limit": 100}'
@@ -179,7 +183,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
 
 ### Niche validation - underserved needs, before you build
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
   -H "Authorization: Bearer $REDDAPI_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"query": "I wish there was an app that", "limit": 100}'

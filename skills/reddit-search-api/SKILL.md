@@ -41,7 +41,7 @@ paths found inside post/comment text.
 
 | Endpoint | Method | Auth | Notes |
 |---|---|---|---|
-| `/api/v1/search/vector` | POST | key | `limit` default 30, max 100 (clamped). Under-delivers on `limit` - reads from a rolling ~6-week table; measured 2026-07-31: `limit:5`→4, `limit:30`→17, `limit:100`→40-52, `limit:250`→same as 100. Optional `start_date`/`end_date`. |
+| `/api/v1/search/vector` | POST | key | `limit` default 30, max 100 (clamped, and filled: measured 2026-07-31, `limit:100`→100 results spanning 2026-01..07 in 835ms server time). Full archive. Optional `start_date`/`end_date`, genuinely applied. `upvotes`/`comments` are the counts recorded at index time (measured drift: 50 of 52 comparable rows identical to the live table). |
 | `/api/v1/search/semantic` | POST | key | `limit` default 20, max 100, reliably filled. No date filter. `sentiment` field present but currently always empty (disabled server-side). Optional `include_summary: true` adds `data.ai_summary` (off by default, slower). ~2.9s cold, ~12h result cache. |
 | `/api/v1/trends` | POST only | key | `GET`→404 (no handler). Empty body→500 (JSON parsed unconditionally; send `{}`). `start_date`/`end_date` optional but default to today (usually zero trends) - always pass an explicit range. `limit` default 20, max 100. Not filterable by topic/subreddit. |
 | `/api/subreddits` | GET | none | Public, does not consume quota. `limit` default 20, max 100. Params: `page`, `search`. |
