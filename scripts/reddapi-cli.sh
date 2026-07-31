@@ -36,12 +36,19 @@ fail_on_error() {
   fi
 }
 
+# Feeds the Authorization header to curl through a stdin config file instead of
+# an -H argument, so the key never lands in the process list (argv is readable
+# by any user via ps) and never appears in shell history or logs.
+curl_auth() {
+  printf 'header = "Authorization: Bearer %s"\n' "$REDDAPI_API_KEY" \
+    | curl --config - "$@"
+}
+
 post_json() {
   local path="$1" body="$2"
   local tmp; tmp="$(mktemp)"
   local code
-  code=$(curl -s -o "$tmp" -w "%{http_code}" -X POST "$API_BASE$path" \
-    -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  code=$(curl_auth -s -o "$tmp" -w "%{http_code}" -X POST "$API_BASE$path" \
     -H "Content-Type: application/json" \
     -d "$body")
   local out; out="$(cat "$tmp")"; rm -f "$tmp"
@@ -53,8 +60,7 @@ get_json() {
   local url="$1"
   local tmp; tmp="$(mktemp)"
   local code
-  code=$(curl -s -o "$tmp" -w "%{http_code}" "$url" \
-    -H "Authorization: Bearer $REDDAPI_API_KEY")
+  code=$(curl_auth -s -o "$tmp" -w "%{http_code}" "$url")
   local out; out="$(cat "$tmp")"; rm -f "$tmp"
   fail_on_error "$code" "$out"
   echo "$out"

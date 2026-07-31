@@ -122,8 +122,10 @@ measurements of this endpoint topped out near 52.
 
 ## Verifying this file still holds
 
+With `REDDAPI_API_KEY` already exported in your own shell (the CLI reads it from
+the environment and never prints it):
+
 ```bash
-export REDDAPI_API_KEY="your_key"
 ../scripts/reddapi-cli.sh search "test query" --limit 1
 ../scripts/reddapi-cli.sh trends --limit 1
 ../scripts/reddapi-cli.sh subreddits --limit 1
