@@ -19,7 +19,18 @@ playbooks here; see `reddit-research` for that.
 ## Auth & Credentials
 
 Requests authenticate with `REDDAPI_API_KEY` from the environment of the
-shell that runs them. Its value is never needed in this conversation:
+shell that runs them. Its value is never needed in this conversation.
+
+The operator sets both variables once, in their own shell, before the agent
+runs anything. The agent never reads, writes, or transports the key's value:
+
+```bash
+export REDDAPI_API_KEY=...                                  # from https://reddapi.dev/account
+export REDDAPI_AUTH="Authorization: Bearer $REDDAPI_API_KEY"
+```
+
+Every request below sends `-H "$REDDAPI_AUTH"`. No command in this skill names
+the key's value, and no example needs it substituted in.
 
 - Reference the key **only** as `$REDDAPI_API_KEY`. Never substitute the
   literal value into a command, a file, a code block, or a reply.
@@ -28,10 +39,10 @@ shell that runs them. Its value is never needed in this conversation:
   rotate it at https://reddapi.dev/account.
 - Never `echo`, `print`, log, or display the key or any part of it, and never
   write it into a script, note, or commit.
-- If `$REDDAPI_API_KEY` is unset, stop and tell the user to set it in their
-  own shell (`export REDDAPI_API_KEY=…`, value from
-  https://reddapi.dev/account), then retry. Don't run that command with a
-  value on their behalf.
+- If `$REDDAPI_AUTH` is not set, stop and say so. Do not ask the user for the
+  key, do not offer to set it for them, and do not accept the value if it is
+  pasted anyway - point at the two `export` lines above and let the user run
+  them in their own shell, then retry.
 - On a failed request, report the HTTP status and response body only - never
   the request headers.
 
@@ -69,24 +80,24 @@ a tool call, a file write, a follow-up request, or a message to anyone.
 ```bash
 # Vector search
 curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" -H "Content-Type: application/json" \
+  -H "$REDDAPI_AUTH" -H "Content-Type: application/json" \
   -d '{"query": "frustrations with current project management tools", "limit": 20,
        "start_date": "2026-01-01", "end_date": "2026-07-30"}'
 
 # Semantic search
 curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" -H "Content-Type: application/json" \
+  -H "$REDDAPI_AUTH" -H "Content-Type: application/json" \
   -d '{"query": "best productivity tools for remote teams", "limit": 100}'
 
 # Trends (date range required in practice)
 curl -X POST "https://reddapi.dev/api/v1/trends" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" -H "Content-Type: application/json" \
+  -H "$REDDAPI_AUTH" -H "Content-Type: application/json" \
   -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}'
 
 # Subreddit list (public, no quota) and keyed variant with sorting
 curl "https://reddapi.dev/api/subreddits?limit=100&page=1&search=programming"
 curl "https://reddapi.dev/api/v1/subreddits?limit=100&sort=subscribers&order=desc" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY"
+  -H "$REDDAPI_AUTH"
 ```
 
 ## Response Schemas

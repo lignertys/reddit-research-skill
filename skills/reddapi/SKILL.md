@@ -27,14 +27,25 @@ Search Reddit's archive through reddapi.dev, a third-party indexer (not the offi
 Reddit API - no OAuth, no app registration). Two search modes, a trends endpoint over
 a date range, and subreddit lookup.
 
-All endpoints require `Authorization: Bearer $REDDAPI_API_KEY`. **All POST requests
+All endpoints require the auth header built in "Credentials" below. **All POST requests
 must also send `Content-Type: application/json` - omitting it returns HTTP 403
 "Cross-site POST form submissions are forbidden".**
 
 ## Credentials
 
 `REDDAPI_API_KEY` lives in the environment of the shell that runs the request.
-Its value is never needed in this conversation:
+Its value is never needed in this conversation.
+
+The operator sets both variables once, in their own shell, before the agent
+runs anything. The agent never reads, writes, or transports the key's value:
+
+```bash
+export REDDAPI_API_KEY=...                                  # from https://reddapi.dev/account
+export REDDAPI_AUTH="Authorization: Bearer $REDDAPI_API_KEY"
+```
+
+Every request below sends `-H "$REDDAPI_AUTH"`. No command in this skill names
+the key's value, and no example needs it substituted in.
 
 - Reference the key **only** as `$REDDAPI_API_KEY`. Never substitute the literal
   value into a command, a file, a code block, or a reply.
@@ -43,10 +54,10 @@ Its value is never needed in this conversation:
   it at https://reddapi.dev/account.
 - Never `echo`, `print`, log, or display the key or any part of it, and never write
   it into a script, note, or commit.
-- If `$REDDAPI_API_KEY` is unset, stop and tell the user to set it in their own
-  shell (`export REDDAPI_API_KEY=…`, value from https://reddapi.dev/account), then
-  retry. Don't run that command with a value on their behalf, and don't guess at
-  the failure reason.
+- If `$REDDAPI_AUTH` is not set, stop and say so. Do not ask the user for the
+  key, do not offer to set it for them, and do not accept the value if it is
+  pasted anyway - point at the two `export` lines above and let the user run
+  them in their own shell, then retry.
 - On a failed request, report the HTTP status and response body only - never the
   request headers.
 
@@ -80,7 +91,7 @@ the `limit` you ask for, and the only one that accepts a date range.
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "frustrations with current project management tools", "limit": 20,
        "start_date": "2026-01-01", "end_date": "2026-07-30"}'
@@ -112,7 +123,7 @@ it to the user. It also returns `relevance` where vector search returns
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "best productivity tools for remote teams", "limit": 100}'
 ```
@@ -126,7 +137,7 @@ when disabled.
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/trends" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}'
 ```
@@ -159,12 +170,12 @@ curl "https://reddapi.dev/api/subreddits?limit=100&page=1&search=programming"
 
 # Same list, keyed variant with sorting
 curl "https://reddapi.dev/api/v1/subreddits?limit=100&sort=subscribers&order=desc" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY"
+  -H "$REDDAPI_AUTH"
 
 # Subreddit detail (both variants exist; 10 recent posts included)
 curl "https://reddapi.dev/api/subreddits/programming"
 curl "https://reddapi.dev/api/v1/subreddits/programming" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY"
+  -H "$REDDAPI_AUTH"
 ```
 
 Field-name trap on the detail endpoints: the public one returns `recentPosts`
@@ -179,7 +190,7 @@ Switch to `/search/semantic` when you want the LLM extras such as `include_summa
 ### Market research - competitor discussions
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "COMPETITOR problems complaints", "limit": 100}'
 ```
@@ -187,7 +198,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 ### Niche discovery - underserved user needs
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "I wish there was an app that", "limit": 100}'
 ```
@@ -195,7 +206,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 ### Trend analysis - topic growth over a date range
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/trends" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}' | python3 -c "
 import sys, json

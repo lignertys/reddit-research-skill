@@ -37,7 +37,18 @@ are managed by the user at https://reddapi.dev/account.
 ### Credentials
 
 `REDDAPI_API_KEY` lives in the environment of the shell that runs the request. Its
-value is never needed in this conversation:
+value is never needed in this conversation.
+
+The operator sets both variables once, in their own shell, before the agent
+runs anything. The agent never reads, writes, or transports the key's value:
+
+```bash
+export REDDAPI_API_KEY=...                                  # from https://reddapi.dev/account
+export REDDAPI_AUTH="Authorization: Bearer $REDDAPI_API_KEY"
+```
+
+Every request below sends `-H "$REDDAPI_AUTH"`. No command in this skill names
+the key's value, and no example needs it substituted in.
 
 - Reference the key **only** as `$REDDAPI_API_KEY`. Never substitute the literal
   value into a command, a file, a code block, or a reply.
@@ -46,10 +57,10 @@ value is never needed in this conversation:
   it at https://reddapi.dev/account.
 - Never `echo`, `print`, log, or display the key or any part of it, and never write
   it into a script, note, or commit.
-- If `$REDDAPI_API_KEY` is unset, stop and tell the user to set it in their own
-  shell (`export REDDAPI_API_KEY=…`, value from https://reddapi.dev/account), then
-  retry. Don't run that command with a value on their behalf, and don't guess at
-  the failure reason.
+- If `$REDDAPI_AUTH` is not set, stop and say so. Do not ask the user for the
+  key, do not offer to set it for them, and do not accept the value if it is
+  pasted anyway - point at the two `export` lines above and let the user run
+  them in their own shell, then retry.
 - On a failed request, report the HTTP status and response body only - never the
   request headers.
 
@@ -93,7 +104,7 @@ Outreach text is drafted for the user to read and send themselves - see
 **Authentication:** every request carries a bearer header built from the
 environment variable, never from a literal key value:
 ```
-Authorization: Bearer $REDDAPI_API_KEY
+$REDDAPI_AUTH
 ```
 
 ### POST /api/v1/leads
@@ -102,7 +113,7 @@ Find scored, classified business leads from Reddit discussions.
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/leads" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "people frustrated with project management tools", "limit": 20}'
 ```
@@ -118,7 +129,7 @@ server-side does not exist. Filter client-side on `lead_score` instead:
 
 ```bash
 curl -s -X POST "https://reddapi.dev/api/v1/leads" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "people frustrated with project management tools", "limit": 50}' \
   | python3 -c "
@@ -277,7 +288,7 @@ Find leads in specific industries:
 ```bash
 # Find people ready to switch from your competitor
 curl -X POST "https://reddapi.dev/api/v1/leads" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "founders looking to switch from Stripe alternatives", "limit": 20}'
 ```
@@ -286,7 +297,7 @@ curl -X POST "https://reddapi.dev/api/v1/leads" \
 ```bash
 # Find users complaining about pricing
 curl -X POST "https://reddapi.dev/api/v1/leads" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "SaaS tool too expensive looking for cheaper alternative", "limit": 30}'
 ```
@@ -295,7 +306,7 @@ curl -X POST "https://reddapi.dev/api/v1/leads" \
 ```bash
 # Find users asking for features you offer
 curl -X POST "https://reddapi.dev/api/v1/leads" \
-  -H "Authorization: Bearer $REDDAPI_API_KEY" \
+  -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "project management tool with AI features", "limit": 20}'
 ```
@@ -306,7 +317,7 @@ curl -X POST "https://reddapi.dev/api/v1/leads" \
 for competitor in "Asana" "Monday" "ClickUp" "Trello"; do
   echo "=== Leads for: $competitor ==="
   curl -s -X POST "https://reddapi.dev/api/v1/leads" \
-    -H "Authorization: Bearer $REDDAPI_API_KEY" \
+    -H "$REDDAPI_AUTH" \
     -H "Content-Type: application/json" \
     -d "{\"query\": \"looking for alternatives to $competitor\", \"limit\": 10}"
 done
