@@ -1,0 +1,5 @@
+{
+  "name": "reddit-research",
+  "version": "1.0.0",
+  "description": "Reddit market research and B2B lead discovery via reddapi.dev: semantic search across 50K+ subreddits, 20M+ posts and 40M+ comments, subreddit discovery, trend tracking and AI lead scoring, with no Reddit OAuth setup."
+}
