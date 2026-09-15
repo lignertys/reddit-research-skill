@@ -3,7 +3,7 @@
 
 Reads the API key from REDDAPI_API_KEY and never prints it.
 
-    python3 reddapi.py vector "frustrated with project management tools" --limit 100
+    python3 reddapi.py semantic "frustrated with project management tools" --limit 100
     python3 reddapi.py vector "AI coding agents" --start 2026-01-01 --end 2026-07-30
     python3 reddapi.py semantic "best productivity tools for remote teams" --summary
     python3 reddapi.py trends --start 2026-07-01 --end 2026-07-30 --limit 10
@@ -111,7 +111,8 @@ def semantic(query: str, limit: int = 20, include_summary: bool = False) -> dict
 
 def trends(start_date: str | None = None, end_date: str | None = None,
            limit: int = 20) -> dict:
-    """Site-wide momentum. POST only; both dates default to today, so pass a range."""
+    """Site-wide named-entity trends. POST only; with no dates the server uses the
+    7 days ending yesterday (UTC), with one date that single day."""
     return request("POST", "/api/v1/trends",
                    body={"start_date": start_date, "end_date": end_date,
                          "limit": _clamp(limit, "trends")})
@@ -169,10 +170,18 @@ def digest_trends(payload: dict) -> str:
     data = payload.get("data", payload)
     rows = data.get("trends") or []
     if not rows:
-        return "(no trends for that range)"
+        cov = data.get("coverage") or {}
+        return f"(no trends for that range; days with data: {cov.get('days_with_data', '?')})"
+
+    def growth(t: dict) -> str:
+        g = t.get("growth_rate")
+        if g is None:
+            return "new"
+        return f"{g:+.0f}% vs prior {t.get('prior_post_count', 0)}"
+
     return "\n".join(
-        f"{t.get('topic', '?')}: {t.get('growth_rate', 0)}% growth, "
-        f"{t.get('post_count', 0)} posts, score {t.get('trend_score', 0)}, "
+        f"{t.get('topic', '?')} [{t.get('kind') or '?'}]: {t.get('post_count', 0)} mentions, "
+        f"{growth(t)}, {t.get('days_active', 0)}d active, score {t.get('trend_score', 0)}, "
         f"top r/{'/'.join((t.get('top_subreddits') or ['?'])[:2])}"
         for t in rows
     )
@@ -197,16 +206,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--raw", action="store_true", help="print raw JSON")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("vector", help="archive search with date filtering (default)")
+    p = sub.add_parser("semantic", help="default search mode, LLM-assisted, no date filter")
+    p.add_argument("query")
+    p.add_argument("--limit", type=int, default=20)
+    p.add_argument("--summary", action="store_true", help="request data.ai_summary")
+
+    p = sub.add_parser("vector", help="archive search, use when you need a date range")
     p.add_argument("query")
     p.add_argument("--limit", type=int, default=30)
     p.add_argument("--start", dest="start_date")
     p.add_argument("--end", dest="end_date")
-
-    p = sub.add_parser("semantic", help="LLM-assisted search, no date filter")
-    p.add_argument("query")
-    p.add_argument("--limit", type=int, default=20)
-    p.add_argument("--summary", action="store_true", help="request data.ai_summary")
 
     p = sub.add_parser("trends", help="site-wide momentum for a date range")
     p.add_argument("--start", dest="start_date")

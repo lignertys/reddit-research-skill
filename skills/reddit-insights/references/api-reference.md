@@ -50,17 +50,23 @@ classification step is disabled server-side.
 
 ### POST /api/v1/trends
 
-Site-wide momentum. Not filterable by topic or subreddit.
+Named entities (products, people, games, shows, events) extracted daily from
+each day's top ~1,000 posts, aggregated over the window and compared with the
+equal-length window before it. Site-wide, not filterable by topic or subreddit.
 
 | Parameter | Type | Default | Notes |
 |---|---|---|---|
-| `start_date` | string | today | always pass an explicit range |
-| `end_date` | string | today | |
+| `start_date` | string | 7 days ago (UTC) | omit both dates for the 7 days ending yesterday |
+| `end_date` | string | yesterday (UTC) | pass only one date for a single day; window max 92 days |
 | `limit` | number | 20 | max 100 |
 
-`GET` on this route returns 404 with an HTML body (no GET handler). A POST
-with an empty body returns 500 because the body is parsed as JSON
-unconditionally, so send at least `{}`.
+`GET` on this route returns 404 with an HTML body (no GET handler). An empty
+POST body is accepted (since 2026-08-25). Today's entities are computed the
+next morning, so `data.coverage.days_with_data` is usually one short when the
+window ends today. `growth_rate` is the percent change of `post_count` against
+`prior_post_count` (the preceding window, `data.prior_date_range`); `null`
+means no prior mentions. Ranking is by `trend_score` (upvotes x 0.6 +
+comments x 0.4), so sort by `growth_rate` client-side for what is rising.
 
 ### Subreddit routes
 
@@ -118,16 +124,19 @@ Field names are reddapi.dev's own. They do not match the official Reddit API:
   "data": {
     "trends": [
       {
-        "id": "trend001",
-        "topic": "AI regulation",
-        "post_count": 1247,
+        "id": "trend_gta_6",
+        "topic": "GTA 6",
+        "kind": "game",
+        "post_count": 41,
+        "prior_post_count": 12,
+        "growth_rate": 241.7,
         "total_upvotes": 45632,
-        "total_comments": 3120,
-        "avg_sentiment": 0.42,
-        "growth_rate": 245.3,
-        "trend_score": 88.4,
-        "top_subreddits": ["technology", "artificial"],
-        "trending_keywords": ["regulation", "policy", "AI act"],
+        "total_comments": 8934,
+        "days_active": 15,
+        "first_seen": "2026-08-02",
+        "trend_score": 30952.8,
+        "top_subreddits": ["gaming", "GTA6"],
+        "trending_keywords": ["trailer", "delay", "leak"],
         "sample_posts": [
           {
             "id": "post123",
@@ -141,7 +150,9 @@ Field names are reddapi.dev's own. They do not match the official Reddit API:
       }
     ],
     "total": 10,
-    "date_range": { "start": "2026-07-01", "end": "2026-07-30" },
+    "date_range": { "start": "2026-08-01", "end": "2026-08-18" },
+    "prior_date_range": { "start": "2026-07-14", "end": "2026-07-31" },
+    "coverage": { "days_requested": 18, "days_with_data": 18, "latest_day": "2026-08-18" },
     "processing_time_ms": 210
   }
 }

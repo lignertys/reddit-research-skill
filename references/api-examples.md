@@ -38,18 +38,22 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 }
 ```
 
-## Trends (30-day window)
+## Trends (7-day window)
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "Authorization: Bearer $REDDAPI_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 2}'
+  -d '{"start_date": "2026-08-18", "end_date": "2026-08-24", "limit": 2}'
 ```
 
-Returned `data.trends[].topic` values in this capture: `general`, `years` - trends
-are global site-wide momentum, not scoped to a query or subreddit; do not expect
-topic-relevant results from this endpoint alone.
+Since the 2026-08-25 rewrite `data.trends[].topic` values are named entities
+(`GTA 6`, `Donald Trump`, `Spider-Man` in this capture) with `kind`,
+`prior_post_count`, `growth_rate` (change vs the preceding 7 days, `null` when
+new), `days_active` and `first_seen`; `data.coverage` says how many requested days
+have data. Before the rewrite the values were title first-words (`general`,
+`years`). Trends are global site-wide, not scoped to a query or subreddit; do
+not expect topic-relevant results from this endpoint alone.
 
 ## Subreddit list
 
@@ -117,7 +121,7 @@ measurements of this endpoint topped out near 52.
 |---|---|
 | POST without `Content-Type: application/json` | `HTTP 403` - "Cross-site POST form submissions are forbidden" |
 | `GET /api/v1/trends` | `HTTP 404` (HTML page, not JSON) - the route is POST-only, so this is about the method, not the missing body |
-| POST with an empty body | `HTTP 500` - the body is JSON-parsed unconditionally; send `{}` at minimum |
+| POST with an empty body | `/api/v1/trends` accepts it since 2026-08-25 (defaults to the 7 days ending yesterday); other POST routes still JSON-parse unconditionally and return `HTTP 500`, so send `{}` at minimum |
 | Invalid/expired API key | `HTTP 429` - `{"success":false,"error":"Rate limit exceeded","message":{"title":"API Access Required",...},"rateLimitInfo":{"limit":0,"remaining":0,"resetAt":0}}` - note this is 429, not 401 |
 
 ## Verifying this file still holds

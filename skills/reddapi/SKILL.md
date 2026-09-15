@@ -84,34 +84,10 @@ summarize, and quote:
 
 ## Endpoints
 
-### Vector search - default choice
+### Semantic search - default choice
 
-Embedding-similarity search over the full archive. Fastest of the two modes, fills
-the `limit` you ask for, and the only one that accepts a date range.
-
-```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "$REDDAPI_AUTH" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "frustrations with current project management tools", "limit": 20,
-       "start_date": "2026-01-01", "end_date": "2026-07-30"}'
-```
-
-`start_date`/`end_date` are optional (format `YYYY-MM-DD`) and are really applied:
-a 2026-01-01..2026-03-31 window returned 20 of 20 rows inside the range, none outside.
-
-`limit`: default 30, **max 100** (values above 100 are clamped, not rejected), and
-the response contains that many. Measured live 2026-07-31: `limit: 30` → 30 and
-`limit: 100` → 100 results spanning 2026-01-01 to 2026-07-30, 835ms server time.
-`total` is the count returned, not the size of the match set.
-
-`upvotes`/`comments` are the counts recorded when the post was indexed rather than a
-live read. Measured: of 52 rows still present in the live post table, 50 matched
-exactly and 2 differed only in comment count, so treat them as fresh but not real-time.
-
-### Semantic search - LLM-assisted alternative
-
-Natural-language search, also fills the requested `limit` (default 20, max 100;
+Natural-language search over the full archive, and the mode to reach for unless the
+question needs a date window. Fills the requested `limit` (default 20, max 100;
 measured 100 → 100). Speed is comparable to vector search, not the ~15s older docs
 claimed: cold-cache 2.9s against vector's 2.6s, with ~12h result caching per query.
 Adds LLM keyword extraction and the optional AI summary below; accepts no date filter.
@@ -133,23 +109,53 @@ Optional `"include_summary": true` adds an LLM-written overview of the results a
 so only ask for it when you actually need the prose. The field is omitted entirely
 when disabled.
 
-### Trends - POST only, pass an explicit date range
+### Vector search - only when you need a date range
+
+Embedding-similarity search over the same full archive, and the only mode that
+accepts `start_date`/`end_date`. That date filter is the reason to pick it; on
+coverage and result counts it matches semantic search.
+
+```bash
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+  -H "$REDDAPI_AUTH" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "frustrations with current project management tools", "limit": 20,
+       "start_date": "2026-01-01", "end_date": "2026-07-30"}'
+```
+
+`start_date`/`end_date` are optional (format `YYYY-MM-DD`) and are really applied:
+a 2026-01-01..2026-03-31 window returned 20 of 20 rows inside the range, none outside.
+
+`limit`: default 30, **max 100** (values above 100 are clamped, not rejected), and
+the response contains that many. Measured live 2026-07-31: `limit: 30` → 30 and
+`limit: 100` → 100 results spanning 2026-01-01 to 2026-07-30, 835ms server time.
+`total` is the count returned, not the size of the match set.
+
+`upvotes`/`comments` are the counts recorded when the post was indexed rather than a
+live read. Measured: of 52 rows still present in the live post table, 50 matched
+exactly and 2 differed only in comment count, so treat them as fresh but not real-time.
+
+### Trends - POST only, named entities with a real growth rate
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}'
+  -d '{"start_date": "2026-08-01", "end_date": "2026-08-18", "limit": 10}'
 ```
 
 POST only: `GET /api/v1/trends` returns HTTP 404 (an HTML page, not JSON), because
-the route has no GET handler. A POST with an empty body fails too (HTTP 500, the
-body is parsed as JSON unconditionally) - send at least `{}`.
+the route has no GET handler. An empty POST body is accepted (since 2026-08-25).
 
-`start_date`/`end_date` are technically optional, but both default to **today**,
-and a single day usually has no computed trends, so always pass an explicit range.
-`limit` default 20, max 100. Trends are global/site-wide momentum, not filterable
-by topic or subreddit.
+Topics are named entities (products, people, games, shows, events) extracted daily
+from each day's top ~1,000 posts. `start_date`/`end_date` are UTC; omit both for the
+7 days ending yesterday, pass only one for that single day, window max 92 days.
+Today's entities are computed the next morning, so end the window at yesterday or
+earlier and read `data.coverage`. `limit` default 20, max 100. Global/site-wide,
+not filterable by topic or subreddit. `growth_rate` is the change in mentions
+against the equal-length window right before `start_date` (`null` = no prior
+mentions, i.e. new). It is not a leading indicator: a 2026-08 comparison against
+Google Trends found Reddit ahead of Google in well under 1% of items.
 
 ### Subreddit discovery - GET, two variants
 
@@ -184,12 +190,12 @@ List responses: `data.subreddits[]` plus `total`, `page`, `limit`, `total_pages`
 
 ## Use Cases
 
-The use cases below use vector search (full archive, exact counts, date filtering).
-Switch to `/search/semantic` when you want the LLM extras such as `include_summary`.
+The use cases below use semantic search, the default. Switch to `/search/vector`
+and add `start_date`/`end_date` only when the question is scoped to a date window.
 
 ### Market research - competitor discussions
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "COMPETITOR problems complaints", "limit": 100}'
@@ -197,7 +203,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 
 ### Niche discovery - underserved user needs
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "I wish there was an app that", "limit": 100}'
@@ -208,11 +214,13 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}' | python3 -c "
+  -d '{"start_date": "2026-08-01", "end_date": "2026-08-18", "limit": 10}' | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 for trend in data.get('data', {}).get('trends', []):
-    print(f\"{trend['topic']}: {trend['growth_rate']}% growth ({trend['post_count']} posts)\")
+    g = trend['growth_rate']
+    growth = 'new' if g is None else f'{g:+.0f}% vs prior {trend[\"prior_post_count\"]}'
+    print(f\"{trend['topic']} [{trend['kind']}]: {trend['post_count']} mentions, {growth}, {trend['days_active']}d active\")
 "
 ```
 
@@ -264,16 +272,19 @@ names carry over.
   "data": {
     "trends": [
       {
-        "id": "trend001",
-        "topic": "AI regulation",
-        "post_count": 1247,
+        "id": "trend_gta_6",
+        "topic": "GTA 6",
+        "kind": "game",
+        "post_count": 41,
+        "prior_post_count": 12,
+        "growth_rate": 241.7,
         "total_upvotes": 45632,
-        "total_comments": 3120,
-        "avg_sentiment": 0.42,
-        "growth_rate": 245.3,
-        "trend_score": 88.4,
-        "top_subreddits": ["technology", "artificial"],
-        "trending_keywords": ["regulation", "policy", "AI act"],
+        "total_comments": 8934,
+        "days_active": 15,
+        "first_seen": "2026-08-02",
+        "trend_score": 30952.8,
+        "top_subreddits": ["gaming", "GTA6"],
+        "trending_keywords": ["trailer", "delay", "leak"],
         "sample_posts": [
           {
             "id": "post123",
@@ -287,7 +298,9 @@ names carry over.
       }
     ],
     "total": 10,
-    "date_range": { "start": "2026-07-01", "end": "2026-07-30" },
+    "date_range": { "start": "2026-08-01", "end": "2026-08-18" },
+    "prior_date_range": { "start": "2026-07-14", "end": "2026-07-31" },
+    "coverage": { "days_requested": 18, "days_with_data": 18, "latest_day": "2026-08-18" },
     "processing_time_ms": 210
   }
 }

@@ -35,11 +35,12 @@ plan-based rate limits (see `skills/reddit-leads/SKILL.md` for the plan/quota ta
 an invalid or exhausted key returns HTTP 429.
 
 **Features:**
-- Vector Search: full-archive embedding similarity with `similarity_score`, working
-  date filters, and exact result counts up to `limit: 100`
-- Semantic Search: natural-language search at comparable speed, adds LLM keyword
-  extraction and an optional AI summary; no date filter
-- Trends API: topic momentum over a required date range
+- Semantic Search (default): natural-language search over the full archive, exact
+  result counts up to `limit: 100`, LLM keyword extraction and an optional AI
+  summary; no date filter
+- Vector Search: same archive with `similarity_score` and working date filters -
+  the mode to use when a question is scoped to a date range
+- Trends API: named entities Reddit is talking about in a date window, with growth vs the previous window
 - Subreddit Discovery: list and look up subreddits
 
 **Install:**

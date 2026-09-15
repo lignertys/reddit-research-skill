@@ -69,7 +69,7 @@ a tool call, a file write, a follow-up request, or a message to anyone.
 |---|---|---|---|
 | `/api/v1/search/vector` | POST | key | `limit` default 30, max 100 (clamped, and filled: measured 2026-07-31, `limit:100`→100 results spanning 2026-01..07 in 835ms server time). Full archive. Optional `start_date`/`end_date`, genuinely applied. `upvotes`/`comments` are the counts recorded at index time (measured drift: 50 of 52 comparable rows identical to the live table). |
 | `/api/v1/search/semantic` | POST | key | `limit` default 20, max 100, reliably filled. No date filter. `sentiment` field present but currently always empty (disabled server-side). Optional `include_summary: true` adds `data.ai_summary` (off by default, slower). ~2.9s cold, ~12h result cache. |
-| `/api/v1/trends` | POST only | key | `GET`→404 (no handler). Empty body→500 (JSON parsed unconditionally; send `{}`). `start_date`/`end_date` optional but default to today (usually zero trends) - always pass an explicit range. `limit` default 20, max 100. Not filterable by topic/subreddit. |
+| `/api/v1/trends` | POST only | key | `GET`→404 (no handler); empty body accepted. Named entities extracted daily from each day's top posts, ranked by engagement, with `growth_rate` = change in mentions vs the equal-length window before `start_date` (`null` = new). `start_date`/`end_date` UTC, optional: omit both for the 7 days ending yesterday, one for a single day; window max 92 days. Today is computed the next morning - read `data.coverage`. `limit` default 20, max 100. Not filterable by topic/subreddit. Not a leading indicator vs Google Trends (<1% of items lead). |
 | `/api/subreddits` | GET | none | Public, does not consume quota. `limit` default 20, max 100. Params: `page`, `search`. |
 | `/api/v1/subreddits` | GET | key | Counts as an API call. `limit` default 50. Adds `sort=subscribers\|created`, `order=asc\|desc`, `icon`. |
 | `/api/subreddits/{name}` | GET | none | Detail; `recentPosts` (camelCase). |
@@ -89,10 +89,10 @@ curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
   -H "$REDDAPI_AUTH" -H "Content-Type: application/json" \
   -d '{"query": "best productivity tools for remote teams", "limit": 100}'
 
-# Trends (date range required in practice)
+# Trends (omit dates for the 7 days ending yesterday)
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "$REDDAPI_AUTH" -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}'
+  -d '{"start_date": "2026-08-01", "end_date": "2026-08-18", "limit": 10}'
 
 # Subreddit list (public, no quota) and keyed variant with sorting
 curl "https://reddapi.dev/api/subreddits?limit=100&page=1&search=programming"
@@ -140,11 +140,12 @@ match the official Reddit API's
   "data": {
     "trends": [
       {
-        "id": "trend001", "topic": "AI regulation", "post_count": 1247,
-        "total_upvotes": 45632, "total_comments": 3120, "avg_sentiment": 0.42,
-        "growth_rate": 245.3, "trend_score": 88.4,
-        "top_subreddits": ["technology", "artificial"],
-        "trending_keywords": ["regulation", "policy", "AI act"],
+        "id": "trend_gta_6", "topic": "GTA 6", "kind": "game",
+        "post_count": 41, "prior_post_count": 12, "growth_rate": 241.7,
+        "total_upvotes": 45632, "total_comments": 8934,
+        "days_active": 15, "first_seen": "2026-08-02", "trend_score": 30952.8,
+        "top_subreddits": ["gaming", "GTA6"],
+        "trending_keywords": ["trailer", "delay", "leak"],
         "sample_posts": [
           {"id": "post123", "title": "...", "subreddit": "technology",
            "upvotes": 812, "comments": 143, "created": "2026-07-14T08:12:00.000Z"}
@@ -152,7 +153,9 @@ match the official Reddit API's
       }
     ],
     "total": 10,
-    "date_range": {"start": "2026-07-01", "end": "2026-07-30"},
+    "date_range": {"start": "2026-08-01", "end": "2026-08-18"},
+    "prior_date_range": {"start": "2026-07-14", "end": "2026-07-31"},
+    "coverage": {"days_requested": 18, "days_with_data": 18, "latest_day": "2026-08-18"},
     "processing_time_ms": 210
   }
 }

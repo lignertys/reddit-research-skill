@@ -40,21 +40,22 @@ for Reddit's own API where official data provenance matters.
 
 This matters more than it looks - the two modes are not interchangeable:
 
-- **Vector search** searches the full archive, **fills the requested `limit`**,
-  and is the faster of the two. Re-measured 2026-07-31 after a server-side fix:
-  `limit: 30` → 30 results and `limit: 100` → 100 results, spanning
-  2026-01-01 to 2026-07-30, in 835ms of server time. It also takes
-  `start_date`/`end_date`, and the filter really applies (a 2026-01-01..03-31
-  window returned 20/20 rows, none outside the range). `total` is the count
-  actually returned, not the size of the match set.
-- **Semantic search** also fills the requested `limit` (100 → 100) at
-  comparable speed (cold-cache 2.9s), adds LLM keyword extraction and an
-  optional AI summary, and caches per query for ~12h. It accepts **no** date
-  filter.
-- **Default to vector search**: full archive, exact counts, faster, and the
-  only mode with date filtering. Reach for semantic search when you want the
-  LLM-side extras (`include_summary`, keyword expansion) rather than raw
-  nearest-neighbour hits.
+- **Semantic search (the default)** searches the full archive, **fills the
+  requested `limit`** (100 → 100) at cold-cache 2.9s, adds LLM keyword
+  extraction and an optional AI summary, and caches per query for ~12h. It
+  accepts **no** date filter.
+- **Vector search** covers the same archive and also fills the requested
+  `limit`. Re-measured 2026-07-31 after a server-side fix: `limit: 30` → 30
+  results and `limit: 100` → 100 results, spanning 2026-01-01 to 2026-07-30,
+  in 835ms of server time. Its one unique capability is `start_date`/`end_date`,
+  and the filter really applies (a 2026-01-01..03-31 window returned 20/20 rows,
+  none outside the range). `total` is the count actually returned, not the size
+  of the match set.
+- **Default to semantic search. Drop to vector search only when the question
+  needs a date range** - a recent-window check, or the same query compared
+  across two periods. Both modes cover the full archive and fill `limit`
+  exactly, and the speed gap no longer decides anything (835ms vs 2.9s cold,
+  then cached), so the date filter is the only reason to switch.
 
 Historical note for anyone comparing older notes: before the 2026-07-31 fix,
 vector search rehydrated every hit from a ~6-week rolling table and dropped the
@@ -125,21 +126,7 @@ is a header problem, not a plan limit.
 
 ## Endpoints
 
-### Vector search
-
-```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
-  -H "$REDDAPI_AUTH" \
-  -H "Content-Type: application/json" \
-  -d '{"query": "frustrations with current project management tools", "limit": 20,
-       "start_date": "2026-01-01", "end_date": "2026-07-30"}'
-```
-
-`start_date`/`end_date` optional (`YYYY-MM-DD`) and genuinely applied. `limit`
-default 30, max 100 (higher values clamped, not rejected) and the response
-contains that many results.
-
-### Semantic search
+### Semantic search - the default
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
@@ -150,27 +137,48 @@ curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
 
 `limit` default 20, max 100, reliably filled. No date filter. Optional
 `"include_summary": true` adds an LLM-written overview as `data.ai_summary` -
-**off by default**, adds a slow LLM call on top of an already-slower path, so
-only ask for it when you need the prose; the field is omitted entirely when
-disabled.
+**off by default**, and it adds a slow LLM call to the request, so only ask for
+it when you need the prose; the field is omitted entirely when disabled.
 
-### Trends - POST only, always pass an explicit date range
+### Vector search - when you need a date range
+
+```bash
+curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+  -H "$REDDAPI_AUTH" \
+  -H "Content-Type: application/json" \
+  -d '{"query": "frustrations with current project management tools", "limit": 20,
+       "start_date": "2026-01-01", "end_date": "2026-07-30"}'
+```
+
+`start_date`/`end_date` optional (`YYYY-MM-DD`) and genuinely applied - this is
+the only reason to pick this endpoint over semantic search. `limit` default 30,
+max 100 (higher values clamped, not rejected) and the response contains that
+many results.
+
+### Trends - POST only, named entities with a real growth rate
 
 ```bash
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}'
+  -d '{"start_date": "2026-08-01", "end_date": "2026-08-18", "limit": 10}'
 ```
 
-`GET` returns HTTP `404` (an HTML page - the route has no GET handler); a
-POST with an empty body returns `500` (the body is parsed as JSON
-unconditionally), so send at least `{}`. `start_date`/`end_date` are
-technically optional but both default to **today**, and a single day usually
-has no computed trends - always pass an explicit range. `limit` default 20,
-max 100. Trends are global/site-wide momentum, not filterable by topic or
-subreddit - use this to spot what's rising, not to score a specific idea.
-`sample_posts` in each trend holds full post objects, not bare ID strings.
+`GET` returns HTTP `404` (an HTML page - the route has no GET handler); an
+empty POST body is accepted (since 2026-08-25). Topics are named entities
+(products, people, games, shows, events) extracted daily from each day's top
+~1,000 posts. `start_date`/`end_date` are UTC and optional: omit both for the 7
+days ending yesterday, pass one for that single day; window max 92 days.
+Today's entities are computed the next morning, so end the window at yesterday
+or earlier and read `data.coverage`. `limit` default 20, max 100. Trends are
+global/site-wide, not filterable by topic or subreddit - use this to spot what
+Reddit is talking about, not to score a specific idea. `growth_rate` is the
+change in mentions against the equal-length window right before `start_date`
+(`null` = new this window); sort by it client-side for what is rising, because
+the list itself is ranked by engagement. It is not a leading indicator: a
+2026-08 comparison against Google Trends found Reddit ahead in well under 1%
+of items. `sample_posts` in each trend holds full post objects, not bare ID
+strings.
 
 ### Subreddit discovery - two variants, pick the right one
 
@@ -201,7 +209,7 @@ responses use `data.subreddits[]` plus `total`, `page`, `limit`,
 
 ### Market research - what people say about a competitor
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "COMPETITOR problems complaints", "limit": 100}'
@@ -209,7 +217,7 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 
 ### Niche validation - underserved needs, before you build
 ```bash
-curl -X POST "https://reddapi.dev/api/v1/search/vector" \
+curl -X POST "https://reddapi.dev/api/v1/search/semantic" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
   -d '{"query": "I wish there was an app that", "limit": 100}'
@@ -220,16 +228,18 @@ curl -X POST "https://reddapi.dev/api/v1/search/vector" \
 curl -X POST "https://reddapi.dev/api/v1/trends" \
   -H "$REDDAPI_AUTH" \
   -H "Content-Type: application/json" \
-  -d '{"start_date": "2026-07-01", "end_date": "2026-07-30", "limit": 10}' | python3 -c "
+  -d '{"start_date": "2026-08-01", "end_date": "2026-08-18", "limit": 10}' | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 for trend in data.get('data', {}).get('trends', []):
-    print(f\"{trend['topic']}: {trend['growth_rate']}% growth ({trend['post_count']} posts)\")
+    g = trend['growth_rate']
+    growth = 'new' if g is None else f'{g:+.0f}% vs prior {trend[\"prior_post_count\"]}'
+    print(f\"{trend['topic']} [{trend['kind']}]: {trend['post_count']} mentions, {growth}, {trend['days_active']}d active\")
 "
 ```
 
-Semantic search is used above for completeness; swap in vector search plus
-`start_date`/`end_date` if you specifically need a fast, recent-window check.
+The searches above use semantic search, the default. Swap in vector search plus
+`start_date`/`end_date` only when the question is scoped to a date window.
 
 ### Quick reference: query pattern -> what it's good for
 
@@ -289,16 +299,19 @@ field names carry over.
   "data": {
     "trends": [
       {
-        "id": "trend001",
-        "topic": "AI regulation",
-        "post_count": 1247,
+        "id": "trend_gta_6",
+        "topic": "GTA 6",
+        "kind": "game",
+        "post_count": 41,
+        "prior_post_count": 12,
+        "growth_rate": 241.7,
         "total_upvotes": 45632,
-        "total_comments": 3120,
-        "avg_sentiment": 0.42,
-        "growth_rate": 245.3,
-        "trend_score": 88.4,
-        "top_subreddits": ["technology", "artificial"],
-        "trending_keywords": ["regulation", "policy", "AI act"],
+        "total_comments": 8934,
+        "days_active": 15,
+        "first_seen": "2026-08-02",
+        "trend_score": 30952.8,
+        "top_subreddits": ["gaming", "GTA6"],
+        "trending_keywords": ["trailer", "delay", "leak"],
         "sample_posts": [
           {
             "id": "post123",
@@ -312,7 +325,9 @@ field names carry over.
       }
     ],
     "total": 10,
-    "date_range": { "start": "2026-07-01", "end": "2026-07-30" },
+    "date_range": { "start": "2026-08-01", "end": "2026-08-18" },
+    "prior_date_range": { "start": "2026-07-14", "end": "2026-07-31" },
+    "coverage": { "days_requested": 18, "days_with_data": 18, "latest_day": "2026-08-18" },
     "processing_time_ms": 210
   }
 }

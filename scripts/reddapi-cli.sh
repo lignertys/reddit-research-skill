@@ -2,13 +2,15 @@
 # CLI for reddapi.dev. Requires REDDAPI_API_KEY to be set.
 #
 # Usage:
-#   ./reddapi-cli.sh search "productivity tools" [--limit N] [--mode vector|semantic] \
+#   ./reddapi-cli.sh search "productivity tools" [--limit N] [--mode semantic|vector] \
 #                     [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD]
 #   ./reddapi-cli.sh trends [--start-date YYYY-MM-DD] [--end-date YYYY-MM-DD] [--limit N]
 #   ./reddapi-cli.sh subreddits [--limit N]
 #   ./reddapi-cli.sh subreddit <name>
 #
-# Defaults: search mode=vector, limit=20; trends defaults to the last 30 days.
+# Defaults: search mode=semantic, limit=20; trends defaults to the 30 days ending
+# yesterday. Semantic takes no date filter, so passing --start-date/--end-date
+# without an explicit --mode switches the call to vector search.
 # Search limit is capped server-side at 100 for both modes (higher values are
 # clamped silently), trends at 100.
 
@@ -72,10 +74,10 @@ shift || true
 case "$cmd" in
   search)
     query="${1:-}"
-    [ -z "$query" ] && { echo "Usage: $0 search \"query\" [--limit N] [--mode vector|semantic] [--start-date D] [--end-date D]" >&2; exit 1; }
+    [ -z "$query" ] && { echo "Usage: $0 search \"query\" [--limit N] [--mode semantic|vector] [--start-date D] [--end-date D]" >&2; exit 1; }
     shift || true
     limit=20
-    mode="vector"
+    mode=""
     start_date=""
     end_date=""
     while [ $# -gt 0 ]; do
@@ -87,8 +89,15 @@ case "$cmd" in
         *) echo "Unknown option: $1" >&2; exit 1 ;;
       esac
     done
-    endpoint="/search/vector"
-    [ "$mode" = "semantic" ] && endpoint="/search/semantic"
+    if [ -z "$mode" ]; then
+      # semantic is the default; a date range is only served by vector search
+      if [ -n "$start_date" ] || [ -n "$end_date" ]; then mode="vector"; else mode="semantic"; fi
+    fi
+    case "$mode" in
+      semantic) endpoint="/search/semantic" ;;
+      vector) endpoint="/search/vector" ;;
+      *) echo "Unknown mode: $mode (expected semantic or vector)" >&2; exit 1 ;;
+    esac
     body="{\"query\": $(python3 -c 'import json,sys; print(json.dumps(sys.argv[1]))' "$query"), \"limit\": $limit"
     [ -n "$start_date" ] && body="$body, \"start_date\": \"$start_date\""
     [ -n "$end_date" ] && body="$body, \"end_date\": \"$end_date\""
@@ -108,9 +117,14 @@ case "$cmd" in
         *) echo "Unknown option: $1" >&2; exit 1 ;;
       esac
     done
-    # Default window: last 30 days, computed at run time (portable date arithmetic).
+    # Default window: the 30 days ending yesterday (today's entities are computed the
+    # next morning), computed at run time (portable date arithmetic).
     if [ -z "$end_date" ]; then
-      end_date=$(date -u +%Y-%m-%d)
+      if date -v-1d >/dev/null 2>&1; then
+        end_date=$(date -u -v-1d +%Y-%m-%d)      # BSD/macOS date
+      else
+        end_date=$(date -u -d "-1 day" +%Y-%m-%d)  # GNU date
+      fi
     fi
     if [ -z "$start_date" ]; then
       if date -v-30d >/dev/null 2>&1; then

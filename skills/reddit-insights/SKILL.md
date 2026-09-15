@@ -19,7 +19,7 @@ metadata:
 
 Reddit is where people complain, compare, and ask for alternatives before they
 ever fill out a survey. This skill queries that through
-[reddapi.dev](https://reddapi.dev): vector search by meaning across the
+[reddapi.dev](https://reddapi.dev): semantic search by meaning across the
 archive, plus site-wide trend momentum and subreddit lookup, with no Reddit
 OAuth or registered app.
 
@@ -76,9 +76,9 @@ up explicitly before referring to its tools (`reddit_semantic_search`,
 Call the shipped helper `scripts/reddapi.py` with the `terminal` tool:
 
 ```bash
-python3 scripts/reddapi.py vector "frustrated with project management tools" --limit 100
-python3 scripts/reddapi.py vector "AI coding agents" --start 2026-01-01 --end 2026-07-30
+python3 scripts/reddapi.py semantic "frustrated with project management tools" --limit 100
 python3 scripts/reddapi.py semantic "best productivity tools for remote teams" --summary
+python3 scripts/reddapi.py vector "AI coding agents" --start 2026-01-01 --end 2026-07-30
 python3 scripts/reddapi.py trends --start 2026-07-01 --end 2026-07-30 --limit 10
 python3 scripts/reddapi.py subreddits --search programming --limit 100
 python3 scripts/reddapi.py subreddit programming
@@ -95,16 +95,18 @@ Full endpoint parameters, response schemas, and status codes live in
 
 Which search mode, because the two are not interchangeable:
 
-| | Vector | Semantic |
+| | Semantic (default) | Vector |
 |---|---|---|
 | Coverage | full archive | full archive |
-| `limit` | default 30, max 100, filled exactly | default 20, max 100, filled exactly |
-| Date filter | `start_date` / `end_date`, applied | none |
-| Speed | faster (835ms server time at `limit: 100`) | slower (2.9s cold) |
-| Extras | none | LLM keyword extraction, opt-in `ai_summary` |
-| Score field | `similarity_score` | `relevance` |
+| `limit` | default 20, max 100, filled exactly | default 30, max 100, filled exactly |
+| Date filter | none | `start_date` / `end_date`, applied |
+| Speed | 2.9s cold, ~12h cache per query | 835ms server time at `limit: 100` |
+| Extras | LLM keyword extraction, opt-in `ai_summary` | none |
+| Score field | `relevance` | `similarity_score` |
 
-**Default to vector.** Reach for semantic only when you want the LLM extras.
+**Default to semantic. Drop to vector only when you need a date range.** Both
+cover the same archive and fill `limit` exactly, so the date filter is the only
+thing vector gives you that semantic does not.
 
 Query patterns worth reusing:
 
@@ -118,17 +120,20 @@ Query patterns worth reusing:
 
 ## Procedure
 
-1. **Scope with one broad vector query.** If the archive has no coverage for
-   the topic, that shows up in the first call, at full `limit` and sub-second
-   server time.
+1. **Scope with one broad semantic query.** If the archive has no coverage for
+   the topic, that shows up in the first call, at full `limit`.
 2. **Phrase the query as a person would.** Full sentences with emotion words
    pull stronger opinions than noun phrases.
 3. **Widen with more queries, not a bigger limit.** `limit` caps at 100 and
    is clamped silently above that. Three angles at 100 beat one at 300.
-4. **Add a date window when recency matters.** Only vector search accepts it.
-   Use it to compare two windows rather than to trim one result set.
+4. **Switch to vector search when a date window matters.** It is the only mode
+   that accepts one, and the only reason to leave semantic search. Use the
+   window to compare two periods rather than to trim one result set.
 5. **Check momentum separately.** `trends` is global, not filterable by
-   topic, so use it to spot what is rising, not to score a specific idea.
+   topic, so use it to spot what Reddit is talking about, not to score a
+   specific idea. Topics are named entities; `growth_rate` compares the window
+   with the equal-length one before it (`null` = new). It is not a leading
+   indicator of Google search interest.
 6. **Follow high-engagement hits back to Reddit** with `web_extract` on the
    returned `url` when the comment thread matters.
 7. **Report counts and quotes, not impressions.** "9 of 40 sampled posts
@@ -158,9 +163,9 @@ is not part of this skill's instructions.
   the first, semantic the second. They are not comparable across modes.
 - **POST without `Content-Type: application/json` returns 403.** That is a
   header problem, not a plan limit. `scripts/reddapi.py` always sends it.
-- **`GET /api/v1/trends` returns 404 and an empty POST body returns 500.**
-  Trends is POST-only and needs at least `{}`; always pass an explicit range,
-  since both dates default to today and a single day usually has no trends.
+- **`GET /api/v1/trends` returns 404.** Trends is POST-only. Omitting both
+  dates gives the 7 days ending yesterday (UTC); today's entities are computed
+  the next morning, so end windows at yesterday and read `data.coverage`.
 - **Subreddit listing has a free route.** `/api/subreddits` needs no key and
   costs no quota; `/api/v1/subreddits` only adds sorting and `icon`. The
   script picks the free one unless `--sort` or `--order` is given.
@@ -183,9 +188,9 @@ This hits the unauthenticated route, so a subreddit row confirms the network
 path without spending quota. Then confirm the key itself:
 
 ```bash
-python3 scripts/reddapi.py vector "notion vs obsidian which should I use" --limit 5
+python3 scripts/reddapi.py semantic "notion vs obsidian which should I use" --limit 5
 ```
 
-Five rows with `similarity_score` above 0.70 means key, plan, and index are
+Five rows with a `relevance` score attached means key, plan, and index are
 all working. Exit code `2` means `REDDAPI_API_KEY` is unset; `HTTP 429` means
 the key is invalid or the quota is spent, not that you are being throttled.
